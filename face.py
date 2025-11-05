@@ -24,8 +24,6 @@ SAFE_THRESHOLD = 0.28
 MIN_VOTES = 3
 TEMPORAL_WINDOW = 5
 FRAME_W, FRAME_H = 320, 240
-# If True, recording will auto-start immediately when face is recognized.
-# If False, user must press '1' to start recording (keeps manual control).
 AUTO_START_RECORD_ON_RECOGNIZE = False
 # ============================================
 
@@ -51,7 +49,7 @@ whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
 print("[✅] Whisper model loaded.")
 
 # ====== Load DistilBERT priority classifier ======
-MODEL_DIR = r"E:\fyp\FYP_Smart notice board\matlab_file\distilbert_3label_priority_20250915_224504\distilbert_3label_priority_20250915_224504"
+MODEL_DIR = r"D:\fyp\distilbert\distilbert_3label_priority_20250915_224504"
 print("[⏳] Loading priority classifier...")
 try:
     tok = DistilBertTokenizerFast.from_pretrained(MODEL_DIR, local_files_only=True)
@@ -75,9 +73,11 @@ def predict_priority(sentence):
     if tok is None or priority_model is None:
         return "Unknown"
     try:
+        print(f"Text input for priority prediction: {sentence}")  # Debug print
         inputs = tok(sentence, return_tensors="pt", truncation=True, padding=True)
         with torch.no_grad():
             outputs = priority_model(**inputs)
+            print(f"Model output logits: {outputs.logits}")  # Debug print
             prediction = torch.argmax(outputs.logits, dim=1).item()
         label_map = {2: "High", 1: "Medium", 0: "Low"}
         return label_map.get(prediction, "Unknown")
@@ -148,6 +148,7 @@ def transcribe_voice(person):
     try:
         result = whisper_model.transcribe(VOICE_FILE, language='en')
         result_text = result.get("text", "").strip()
+        print(f"[📝] Whisper Transcription: {result_text}")  # Debug print
         if not result_text:
             print("[⚠] Could not detect any speech. Please try again.")
             return False
@@ -286,11 +287,9 @@ while True:
             top = max(set(recent_predictions), key=recent_predictions.count)
             if recent_predictions.count(top) >= 3 and top != 'unknown':
                 print(f"\n[✅] Face recognized as {top}.")
-                # Only voice path now (no typing)
                 give_another = True
                 while give_another:
                     if AUTO_START_RECORD_ON_RECOGNIZE:
-                        # Auto-start recording, user still must press 2 to stop
                         t = threading.Thread(target=start_recording)
                         t.start()
                     else:
@@ -303,7 +302,6 @@ while True:
                             t = threading.Thread(target=start_recording)
                             t.start()
                         elif ch == '2':
-                            # stop recording and proceed to transcription/confirmation
                             stop_recording()
                             give_another = transcribe_voice(top)
                             break
